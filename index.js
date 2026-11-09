@@ -1,7 +1,7 @@
 const EXTENSION_NAME = 'deck-manager';
 const TEMPLATE_PATH = 'third-party/deck-manager';
 const STATE_KEY = 'cardDeckManager';
-const TOOL_NAMES = ['deck_shuffle', 'deck_draw', 'deck_pass'];
+const TOOL_NAMES = ['deck_shuffle', 'deck_draw', 'deck_pass', 'deck_reshuffle', 'deck_view_user_cards', 'deck_discard', 'deck_count'];
 const MAX_ACTION_LOG = 25;
 const MAX_DRAW_COUNT = 10;
 
@@ -58,10 +58,11 @@ function getChatState(create = true) {
     const metadata = ctx.chatMetadata;
     if (!metadata[STATE_KEY] && create) {
         metadata[STATE_KEY] = {
-            version: 1,
+            version: 2,
             drawPile: configuredDeck(),
             llmHand: [],
             passedCards: [],
+            discardPile: [],
             shuffled: false,
             actionLog: [{ at: Date.now(), kind: 'system', text: 'A new deck is ready. Shuffle it before drawing or passing.' }],
         };
@@ -69,8 +70,14 @@ function getChatState(create = true) {
     }
     const state = metadata[STATE_KEY];
     if (!state || !Array.isArray(state.drawPile)) return null;
+    // Migrate older state versions
+    if (state.version < 2) {
+        state.discardPile = [];
+        state.version = 2;
+    }
     state.llmHand = Array.isArray(state.llmHand) ? state.llmHand : [];
     state.passedCards = Array.isArray(state.passedCards) ? state.passedCards : [];
+    state.discardPile = Array.isArray(state.discardPile) ? state.discardPile : [];
     state.actionLog = Array.isArray(state.actionLog) ? state.actionLog : [];
     return state;
 }
@@ -205,6 +212,130 @@ function makeToolDefinitions() {
             formatMessage: ({ count }) => `The LLM dealt ${count} card(s) to you.`,
             stealth: false,
         },
+        {
+            name: 'deck_reshuffle',
+            displayName: 'Reshuffle All Cards',
+            description: 'Return all cards (from your private hand, the user\'s pile, and the discard pile) back to the draw pile and shuffle. Use this when a game round ends or you need to start fresh without resetting the entire chat.',
+            parameters: {
+                $schema: 'http://json-schema.org/draft-04/schema#',
+                type: 'object',
+                properties: {},
+                required: [],
+            },
+            action: async () => {
+                const state = getChatState();
+                if (!state) return addError('No active chat. Open a character or group chat first.');
+                // Collect all cards back into the draw pile
+                const handCards = state.llmHand.splice(0);
+                const passedCards = state.passedCards.splice(0);
+                const discardCards = state.discardPile.splice(0);
+                state.drawPile.push(...handCards, ...passedCards, ...discardCards);
+                shuffleArray(state.drawPile);
+                state.shuffled = true;
+                await pushLog('reshuffle', `All ${state.drawPile.length} card(s) returned to draw pile and reshuffled.`);
+                notify('success', `The LLM collected all cards back into the deck and reshuffled. ${state.drawPile.length} card(s) in the draw pile.`);
+                return `SUCCESS: All cards have been returned to the draw pile and shuffled. The deck now contains ${state.drawPile.length} card(s). Your private hand is empty.`;
+            },
+            formatMessage: () => 'The LLM collected all cards back into the deck and reshuffled.',
+            stealth: false,
+        },
+        {
+            name: 'deck_view_user_cards',
+            displayName: 'View User\'s Cards (Requires Approval)',
+            description: 'Request to see the cards currently held by the user. This will prompt the user for approval before revealing their card identities to you. Use this sparingly and only when game rules require it.',
+            parameters: {
+                $schema: 'http://json-schema.org/draft-04/schema#',
+                type: 'object',
+                properties: {},
+                required: [],
+            },
+            action: async () => {
+                const state = getChatState();
+                if (!state) return addError('No active chat. Open a character or group chat first.');
+                if (state.passedCards.length === 0) {
+                    await pushLog('view_user', 'LLM requested to view user cards, but user has no cards yet.');
+                    return 'INFO: The user currently has no cards in their hand.';
+                }
+                // Request user approval via popup
+                const ctx = getContext();
+                let approved = false;
+                try {
+                    if (ctx?.Popup?.show?.confirm) {
+                        const result = await ctx.Popup.show.confirm(
+                            'Card Deck Manager',
+                            `The LLM wants to see your ${state.passedCards.length} card(s). Allow?`
+                        );
+                        approved = result === 1; // POPUP_RESULT.AFFIRMATIVE
+                    } else {
+                        // Fallback: if popup API unavailable, auto-approve with warning
+                        console.warn('[deck-manager] Popup API unavailable, auto-approving view request.');
+                        approved = true;
+                    }
+                } catch (error) {
+                    console.error('[deck-manager] Error showing approval popup:', error);
+                    return addError('Could not show approval dialog to user.');
+                }
+                if (!approved) {
+                    await pushLog('view_user', 'LLM requested to view user cards, but user declined.');
+                    notify('info', 'You declined the LLM\'s request to see your cards.');
+                    return 'INFO: The user declined to show their cards. You do not know what they are holding.';
+                }
+                const cardText = state.passedCards.join(', ');
+                await pushLog('view_user', `LLM viewed user cards (approved): ${cardText}`);
+                notify('info', 'You allowed the LLM to see your cards.');
+                return `SUCCESS: The user approved. Their current hand contains: ${cardText}. Remember these are their cards, not yours.`;
+            },
+            formatMessage: () => 'The LLM requested to view your cards.',
+            stealth: false,
+        },
+        {
+            name: 'deck_discard',
+            displayName: 'Discard Cards from Hand',
+            description: 'Discard 1–10 cards from your private hand into the discard pile. These cards are removed from play until reshuffled.',
+            parameters: {
+                $schema: 'http://json-schema.org/draft-04/schema#',
+                type: 'object',
+                properties: {
+                    count: { type: 'integer', minimum: 1, maximum: MAX_DRAW_COUNT, description: 'Number of cards to discard from your hand (1–10).' },
+                },
+                required: ['count'],
+            },
+            action: async ({ count }) => {
+                const countError = validateCount(count);
+                if (countError) return addError(countError);
+                const state = getChatState();
+                if (!state) return addError('No active chat. Open a character or group chat first.');
+                if (state.llmHand.length < count) {
+                    return addError(`You only have ${state.llmHand.length} card(s) in your hand. Cannot discard ${count}.`);
+                }
+                const cards = state.llmHand.splice(0, count);
+                state.discardPile.push(...cards);
+                await pushLog('discard', `LLM discarded ${count} card(s): ${cards.join(', ')}`);
+                notify('info', `The LLM discarded ${count} card(s) from their hand.`);
+                return `SUCCESS: You discarded ${count} card(s) to the discard pile. Your private hand now has ${state.llmHand.length} card(s). Discarded cards: ${cards.join(', ')}.`;
+            },
+            formatMessage: ({ count }) => `The LLM discarded ${count} card(s) from their hand.`,
+            stealth: false,
+        },
+        {
+            name: 'deck_count',
+            displayName: 'Check Card Counts',
+            description: 'Get the current counts of cards in each pile (draw, your hand, user\'s hand, discard). Useful for tracking game state.',
+            parameters: {
+                $schema: 'http://json-schema.org/draft-04/schema#',
+                type: 'object',
+                properties: {},
+                required: [],
+            },
+            action: async () => {
+                const state = getChatState();
+                if (!state) return addError('No active chat. Open a character or group chat first.');
+                await pushLog('count', `LLM checked card counts.`);
+                return `INFO: Draw pile: ${state.drawPile.length} | Your hand: ${state.llmHand.length} | User's hand: ${state.passedCards.length} | Discard pile: ${state.discardPile.length}`;
+            },
+            formatMessage: () => 'The LLM checked the current card counts.',
+            stealth: false,
+        },
     ];
 }
 
@@ -239,6 +370,7 @@ function renderPanel() {
         $('#cdm_remaining').text('—');
         $('#cdm_hand').text('—');
         $('#cdm_passed').text('—');
+        $('#cdm_discard').text('—');
         $('#cdm_shuffle_state').text('No active chat');
         $('#cdm_activity').html('<div class="cdm-empty">Open a chat to initialize its deck.</div>');
         return;
@@ -246,6 +378,7 @@ function renderPanel() {
     $('#cdm_remaining').text(String(state.drawPile.length));
     $('#cdm_hand').text(String(state.llmHand.length));
     $('#cdm_passed').text(String(state.passedCards.length));
+    $('#cdm_discard').text(String(state.discardPile.length));
     $('#cdm_shuffle_state').text(state.shuffled ? 'Shuffled' : 'Needs shuffle');
     const rows = state.actionLog.slice().reverse().map(entry => {
         const time = new Date(entry.at).toLocaleTimeString();
@@ -271,10 +404,11 @@ function resetCurrentDeck() {
         return;
     }
     ctx.chatMetadata[STATE_KEY] = {
-        version: 1,
+        version: 2,
         drawPile: cards.slice(),
         llmHand: [],
         passedCards: [],
+        discardPile: [],
         shuffled: false,
         actionLog: [{ at: Date.now(), kind: 'reset', text: `Deck reset with ${cards.length} card(s). Shuffle before drawing or passing.` }],
     };
@@ -315,6 +449,24 @@ async function renderSettings() {
     });
 
     $('#cdm_reset_deck').on('click', resetCurrentDeck);
+
+    $('#cdm_reshuffle').on('click', async function () {
+        const state = getChatState();
+        if (!state) {
+            notify('error', 'Open a character or group chat before reshuffling.');
+            return;
+        }
+        // Collect all cards back into the draw pile
+        const handCards = state.llmHand.splice(0);
+        const passedCards = state.passedCards.splice(0);
+        const discardCards = state.discardPile.splice(0);
+        state.drawPile.push(...handCards, ...passedCards, ...discardCards);
+        shuffleArray(state.drawPile);
+        state.shuffled = true;
+        await pushLog('reshuffle', `User reshuffled all ${state.drawPile.length} card(s) back into the draw pile.`);
+        notify('success', `All cards collected and reshuffled. ${state.drawPile.length} card(s) in the draw pile.`);
+    });
+
     $('#cdm_clear_log').on('click', function () {
         const state = getChatState(false);
         if (!state) return;

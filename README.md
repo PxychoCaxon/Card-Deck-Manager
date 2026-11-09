@@ -1,10 +1,14 @@
 # Card Deck Manager for SillyTavern
 
-A client-side SillyTavern extension that exposes three function tools to the active chat model:
+A client-side SillyTavern extension that exposes seven function tools to the active chat model for managing card games:
 
 - `deck_shuffle`: shuffles the remaining draw pile.
 - `deck_draw`: draws 1–10 cards into the LLM's private hand. Card identities are returned to the model and hidden from the chat transcript UI.
 - `deck_pass`: deals 1–10 cards to the user. The user sees the card identities in the extension panel and a notification; the model receives only the number passed.
+- `deck_reshuffle`: returns all cards (LLM hand, user's pile, discard pile) back to the draw pile and reshuffles. Useful for starting a new round without resetting the chat.
+- `deck_view_user_cards`: requests to see the user's current hand. Shows a popup asking the user for approval before revealing card identities to the LLM.
+- `deck_discard`: discards 1–10 cards from the LLM's private hand into the discard pile.
+- `deck_count`: reports the current count of cards in each pile (draw, LLM hand, user hand, discard).
 
 The extension is a normal UI extension, not a server plugin. It has a settings-panel entry, a per-chat deck state, and a user-visible activity log. It does not expose a tool for listing or inspecting the entire deck.
 
@@ -38,6 +42,7 @@ Publish this folder as the root of a Git repository, then use Extensions → Ins
 3. Leave the custom deck blank for a standard 52-card deck, or enter one card per line and select **Save deck & reset current chat**.
 4. The model must call `deck_shuffle` before `deck_draw` or `deck_pass`.
 5. `deck_draw` returns actual cards to the model only. `deck_pass` reveals cards to the user only.
+6. Use **Reshuffle all cards** button (or have the LLM call `deck_reshuffle`) to collect all cards back into the draw pile and shuffle for a new round.
 
 A reset creates a fresh deck and clears the private hand and passed-card pile. The deck must be shuffled again after reset. Draw/pass requests are atomic: if there are not enough cards, nothing is removed.
 
