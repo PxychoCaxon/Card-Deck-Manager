@@ -1,0 +1,36 @@
+<div class="extension_block cdm-extension">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>Card Deck Manager</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div class="cdm-row">
+                <input id="cdm_enabled" type="checkbox" />
+                <label for="cdm_enabled">Enable card tools</label>
+            </div>
+            <div id="cdm_status" class="cdm-status">Loading…</div>
+            <div class="cdm-stats">
+                <div><span>Draw pile</span><b id="cdm_remaining">—</b></div>
+                <div><span>LLM private hand</span><b id="cdm_hand">—</b></div>
+                <div><span>Passed to user</span><b id="cdm_passed">—</b></div>
+                <div><span>Shuffle state</span><b id="cdm_shuffle_state">—</b></div>
+            </div>
+            <hr />
+            <label for="cdm_custom_deck"><b>Custom deck</b></label>
+            <small>Optional. Enter one card per line (maximum 200). Leave blank to use a standard 52-card deck. The full deck list is never sent to the LLM.</small>
+            <textarea id="cdm_custom_deck" rows="6" placeholder="Leave blank for a standard 52-card deck"></textarea>
+            <div class="cdm-buttons">
+                <button id="cdm_save_deck" class="menu_button">Save deck &amp; reset current chat</button>
+                <button id="cdm_reset_deck" class="menu_button">Reset current deck</button>
+            </div>
+            <hr />
+            <div class="cdm-activity-header">
+                <b>Recent activity</b>
+                <button id="cdm_clear_log" class="menu_button">Clear log</button>
+            </div>
+            <div id="cdm_activity" class="cdm-activity"><div class="cdm-empty">Open a chat to initialize its deck.</div></div>
+            <small class="cdm-note">Private draws are recorded here without card identities. Passed cards are shown here and in a notification, but their identities are withheld from the LLM.</small>
+        </div>
+    </div>
+</div>

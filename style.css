@@ -1,0 +1,65 @@
+.cdm-extension .cdm-row,
+.cdm-extension .cdm-buttons,
+.cdm-extension .cdm-activity-header {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.cdm-extension .cdm-row label { cursor: pointer; }
+.cdm-extension .cdm-status,
+.cdm-extension .cdm-note,
+.cdm-extension small {
+    display: block;
+    opacity: 0.78;
+    margin: 0.35rem 0 0.6rem;
+}
+
+.cdm-extension .cdm-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    margin: 0.75rem 0;
+}
+
+.cdm-extension .cdm-stats > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 0.35rem;
+}
+
+.cdm-extension #cdm_custom_deck {
+    width: 100%;
+    resize: vertical;
+    margin: 0.4rem 0 0.6rem;
+}
+
+.cdm-extension .cdm-buttons { flex-wrap: wrap; }
+.cdm-extension .cdm-activity-header { justify-content: space-between; margin: 0.5rem 0; }
+.cdm-extension .cdm-activity {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 16rem;
+    overflow-y: auto;
+}
+
+.cdm-extension .cdm-log-row {
+    display: grid;
+    grid-template-columns: 4.7rem 4rem minmax(0, 1fr);
+    gap: 0.4rem;
+    align-items: start;
+    padding: 0.4rem;
+    border-left: 3px solid var(--SmartThemeBorderColor);
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 0.2rem;
+    overflow-wrap: anywhere;
+}
+
+.cdm-extension .cdm-log-time { opacity: 0.65; font-size: 0.85em; }
+.cdm-extension .cdm-error { border-left-color: var(--warning); }
+.cdm-extension .cdm-pass { border-left-color: var(--SmartThemeQuoteColor); }
+.cdm-extension .cdm-empty { opacity: 0.65; padding: 0.5rem; }
