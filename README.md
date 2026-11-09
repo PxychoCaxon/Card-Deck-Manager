@@ -33,7 +33,7 @@ Restart or refresh SillyTavern, then enable **Card Deck Manager** in Extensions 
 
 ### Git installation
 
-Publish this folder as the root of a Git repository, then use Extensions → Install Extension and enter that repository URL.
+Use Extensions → Install Extension and enter this repository's URL.
 
 ## Use
 
@@ -54,4 +54,4 @@ This is UI-level privacy, not cryptographic secrecy. A user with browser develop
 
 ## Validation notes
 
-The package uses the documented `SillyTavern.getContext().registerFunctionTool()` API. It has not been tested inside a live SillyTavern instance; verify the UI and tool-call behavior against the exact SillyTavern build and model/provider you use.
+The package uses the documented `SillyTavern.getContext().registerFunctionTool()` API. By itself, the LLM may not be aware how it must manage the deck appropriately. Use a capable prompt that properly guides the model.
