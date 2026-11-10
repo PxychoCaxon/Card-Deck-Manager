@@ -46,6 +46,9 @@ Use Extensions → Install Extension and enter this repository's URL.
 
 A reset creates a fresh deck and clears the private hand and passed-card pile. The deck must be shuffled again after reset. Draw/pass requests are atomic: if there are not enough cards, nothing is removed.
 
+## Note
+If the tool call says "...(Private)", do not expand it unless you would like to view the cards sorted to the LLM.
+
 ## Privacy model
 
 SillyTavern normally displays tool-call transcript messages in chat. This extension hides `.mes.toolCall` elements with CSS so private draw results are not rendered in the chat window. It instead reports safe action summaries in its own activity panel. Passed card identities are deliberately shown only in the user-facing panel/notification and are never included in the `deck_pass` tool result.
