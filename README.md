@@ -46,8 +46,7 @@ Use Extensions → Install Extension and enter this repository's URL.
 
 A reset creates a fresh deck and clears the private hand and passed-card pile. The deck must be shuffled again after reset. Draw/pass requests are atomic: if there are not enough cards, nothing is removed.
 
-## Note
-If the tool call says "...(Private)", do not expand it unless you would like to view the cards sorted to the LLM.
+**Note**: If the tool call says "...(Private)", do not expand it! Unless you would like to view the cards sorted to the LLM.
 
 ## Privacy model
 
