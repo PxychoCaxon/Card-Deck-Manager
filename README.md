@@ -52,7 +52,7 @@ A reset creates a fresh deck and clears the private hand and passed-card pile. T
 
 SillyTavern normally displays tool-call transcript messages in chat. This extension hides `.mes.toolCall` elements with CSS so private draw results are not rendered in the chat window. It instead reports safe action summaries in its own activity panel. Passed card identities are deliberately shown only in the user-facing panel/notification and are never included in the `deck_pass` tool result.
 
-This is UI-level privacy, not cryptographic secrecy. A user with browser developer tools or access to the underlying chat data can inspect tool-call data. The extension does not send the deck list to the model; only cards actually drawn are returned to it.
+This is UI-level privacy. A user with browser developer tools or access to the underlying chat data can inspect tool-call data. The extension does not send the deck list to the model; only cards actually drawn are returned to it.
 
 ## Validation notes
 
