@@ -1,4 +1,4 @@
-# Card Deck Manager for SillyTavern
+# Card Deck Manager for SillyTavern v2.0
 
 A client-side SillyTavern extension that exposes eight function tools to the active chat model for managing card games:
 
@@ -11,7 +11,7 @@ A client-side SillyTavern extension that exposes eight function tools to the act
 - `deck_discard`: discards 1–10 cards from the LLM's private hand into the discard pile.
 - `deck_count`: reports the current count of cards in each pile (draw, LLM hand, user hand, discard).
 
-The extension is a normal UI extension, not a server plugin. It has a settings-panel entry, a per-chat deck state, and a user-visible activity log. It does not expose a tool for listing or inspecting the entire deck.
+The extension is a normal UI extension. It has a settings-panel entry, a per-chat deck state, and a user-visible activity log. It does not expose a tool for listing or inspecting the entire deck.
 
 ## Requirements
 
@@ -20,6 +20,11 @@ The extension is a normal UI extension, not a server plugin. It has a settings-p
 - **Enable function calling** in SillyTavern's AI Response Configuration.
 
 Text Completion APIs do not support function calling. Tool calls are not guaranteed to be made unless the model decides they are needed; mention the available deck tools in the character card or scenario instructions when appropriate.
+
+## Recommendations
+- A prompt explaining that the model has access to the above tools and when to call them based on the game rules.
+- Enable thinking for the model and set the thinking template appropriately. If using `koboldcpp` backend, turn on `Use jinja` found in the Context menu and then enable thinking from the same menu.
+- Setting Interleaved Thinking inside SillyTavern to `Active Tool Chain` may drastically improve model coherence.
 
 ## Install
 
@@ -48,14 +53,15 @@ Use Extensions → Install Extension and enter this repository's URL.
 ### Customizing Tool Prompts
 
 The extension allows you to customize the prompts/descriptions that are sent to the LLM for each tool. This is useful for:
-- Adapting the tools to specific card games (e.g., changing "private hand" to "your cards" for a specific game)
+- Adapting the tools to specific card games
 - Adding game-specific rules or instructions
 - Adjusting tone or formality
+- Performing another action, if required, along with the tool call
 
 To customize prompts:
 1. Open the Card Deck Manager settings panel
 2. Scroll down to the **Customize Tool Prompts** section
-3. Edit any tool's prompt in its textarea (leave blank to use default)
+3. Edit any tool's prompt in its text area (leave blank to use default)
 4. Click **Save prompts & re-register tools**
 5. Use **Reset to defaults** to restore original prompts
 
