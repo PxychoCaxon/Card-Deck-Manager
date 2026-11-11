@@ -32,6 +32,57 @@
                 <button id="cdm_clear_log" class="menu_button">Clear log</button>
             </div>
             <div id="cdm_activity" class="cdm-activity"><div class="cdm-empty">Open a chat to initialize its deck.</div></div>
+            
+            <hr />
+            <div class="cdm-activity-header">
+                <b>Customize Tool Prompts</b>
+                <button id="cdm_reset_prompts" class="menu_button">Reset to defaults</button>
+            </div>
+            <small>Edit the prompts that are sent to the LLM for each tool. Leave blank to use defaults.</small>
+            
+            <div class="cdm-prompt-field">
+                <label for="cdm_prompt_shuffle"><b>deck_shuffle</b></label>
+                <textarea id="cdm_prompt_shuffle" rows="2" placeholder="Shuffle the remaining draw pile for the active card game. Call this before the first draw and demonstrate yourself carrying out this action. This does not reveal any card identities."></textarea>
+            </div>
+            
+            <div class="cdm-prompt-field">
+                <label for="cdm_prompt_draw"><b>deck_draw</b></label>
+                <textarea id="cdm_prompt_draw" rows="2" placeholder="Draw 1–10 cards from the top of the shuffled draw pile into your private hand. The returned card identities are visible to you but must not be shown to the user unless game rules require it."></textarea>
+            </div>
+            
+            <div class="cdm-prompt-field">
+                <label for="cdm_prompt_pass"><b>deck_pass</b></label>
+                <textarea id="cdm_prompt_pass" rows="2" placeholder="Deal 1–10 cards from the top of the shuffled draw pile directly to the user. This reveals the actual card identities to the user, but withholds them from you."></textarea>
+            </div>
+            
+            <div class="cdm-prompt-field">
+                <label for="cdm_prompt_common"><b>deck_draw_common</b></label>
+                <textarea id="cdm_prompt_common" rows="2" placeholder="Draw 1–5 community cards and reveal them publicly to both you and the user. Use this for games like poker or blackjack where certain cards are visible to everyone."></textarea>
+            </div>
+            
+            <div class="cdm-prompt-field">
+                <label for="cdm_prompt_reshuffle"><b>deck_reshuffle</b></label>
+                <textarea id="cdm_prompt_reshuffle" rows="2" placeholder="Return all cards (from your private hand, the user's pile, and the discard pile) back to the draw pile and shuffle. Use this when a game round ends or you need to start fresh."></textarea>
+            </div>
+            
+            <div class="cdm-prompt-field">
+                <label for="cdm_prompt_view"><b>deck_view_user_cards</b></label>
+                <textarea id="cdm_prompt_view" rows="2" placeholder="Request to see the cards currently held by the user. This will prompt the user for approval before revealing their card identities to you. This request may be denied."></textarea>
+            </div>
+            
+            <div class="cdm-prompt-field">
+                <label for="cdm_prompt_discard"><b>deck_discard</b></label>
+                <textarea id="cdm_prompt_discard" rows="2" placeholder="Discard 1–10 cards from your private hand into the discard pile. These cards are removed from play until reshuffled."></textarea>
+            </div>
+            
+            <div class="cdm-prompt-field">
+                <label for="cdm_prompt_count"><b>deck_count</b></label>
+                <textarea id="cdm_prompt_count" rows="2" placeholder="Get the current counts of cards in each pile (draw, your hand, user's hand, discard). Useful for tracking game state. Card identities won't be revealed."></textarea>
+            </div>
+            
+            <button id="cdm_save_prompts" class="menu_button">Save prompts &amp; re-register tools</button>
+            
+            <hr />
             <small class="cdm-note">Private draws are recorded here without card identities. Passed cards are shown here and in a notification, but their identities are withheld from the LLM.</small>
         </div>
     </div>

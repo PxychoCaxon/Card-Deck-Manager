@@ -63,3 +63,20 @@
 .cdm-extension .cdm-error { border-left-color: var(--warning); }
 .cdm-extension .cdm-pass { border-left-color: var(--SmartThemeQuoteColor); }
 .cdm-extension .cdm-empty { opacity: 0.65; padding: 0.5rem; }
+
+/* Tool prompt customization fields */
+.cdm-extension .cdm-prompt-field {
+    margin-bottom: 0.75rem;
+}
+
+.cdm-extension .cdm-prompt-field label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.9em;
+}
+
+.cdm-extension .cdm-prompt-field textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 3rem;
+}

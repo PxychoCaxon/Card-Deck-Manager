@@ -1,10 +1,11 @@
 # Card Deck Manager for SillyTavern
 
-A client-side SillyTavern extension that exposes seven function tools to the active chat model for managing card games:
+A client-side SillyTavern extension that exposes eight function tools to the active chat model for managing card games:
 
 - `deck_shuffle`: shuffles the remaining draw pile.
 - `deck_draw`: draws 1–10 cards into the LLM's private hand. Card identities are returned to the model and hidden from the chat transcript UI.
 - `deck_pass`: deals 1–10 cards to the user. The user sees the card identities in the extension panel and a notification; the model receives only the number passed.
+- `deck_draw_common`: draws 1–5 community cards and reveals them publicly to both the LLM and user (for games like poker/blackjack).
 - `deck_reshuffle`: returns all cards (LLM hand, user's pile, discard pile) back to the draw pile and reshuffles. Useful for starting a new round without resetting the chat.
 - `deck_view_user_cards`: requests to see the user's current hand. Shows a popup asking the user for approval before revealing card identities to the LLM.
 - `deck_discard`: discards 1–10 cards from the LLM's private hand into the discard pile.
@@ -43,6 +44,20 @@ Use Extensions → Install Extension and enter this repository's URL.
 4. The model must call `deck_shuffle` before `deck_draw` or `deck_pass`.
 5. `deck_draw` returns actual cards to the model only. `deck_pass` reveals cards to the user only.
 6. Use **Reshuffle all cards** button (or have the LLM call `deck_reshuffle`) to collect all cards back into the draw pile and shuffle for a new round.
+
+### Customizing Tool Prompts
+
+The extension allows you to customize the prompts/descriptions that are sent to the LLM for each tool. This is useful for:
+- Adapting the tools to specific card games (e.g., changing "private hand" to "your cards" for a specific game)
+- Adding game-specific rules or instructions
+- Adjusting tone or formality
+
+To customize prompts:
+1. Open the Card Deck Manager settings panel
+2. Scroll down to the **Customize Tool Prompts** section
+3. Edit any tool's prompt in its textarea (leave blank to use default)
+4. Click **Save prompts & re-register tools**
+5. Use **Reset to defaults** to restore original prompts
 
 A reset creates a fresh deck and clears the private hand and passed-card pile. The deck must be shuffled again after reset. Draw/pass requests are atomic: if there are not enough cards, nothing is removed.
 

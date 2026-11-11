@@ -1,13 +1,25 @@
 const EXTENSION_NAME = 'deck-manager';
 const TEMPLATE_PATH = 'third-party/deck-manager';
 const STATE_KEY = 'cardDeckManager';
-const TOOL_NAMES = ['deck_shuffle', 'deck_draw', 'deck_pass', 'deck_reshuffle', 'deck_view_user_cards', 'deck_discard', 'deck_count'];
+const TOOL_NAMES = ['deck_shuffle', 'deck_draw', 'deck_pass', 'deck_draw_common', 'deck_reshuffle', 'deck_view_user_cards', 'deck_discard', 'deck_count'];
 const MAX_ACTION_LOG = 25;
 const MAX_DRAW_COUNT = 10;
+
+const DEFAULT_TOOL_PROMPTS = Object.freeze({
+    deck_shuffle: 'Shuffle the remaining draw pile for the active card game. Call this before the first draw and demonstrate yourself carrying out this action. This does not reveal any card identities.',
+    deck_draw: 'Draw 1–10 cards from the top of the shuffled draw pile into your private hand. The returned card identities are visible to you but must not be shown to the user unless game rules require it.',
+    deck_pass: 'Deal 1–10 cards from the top of the shuffled draw pile directly to the user. This reveals the actual card identities to the user, but withholds them from you.',
+    deck_draw_common: 'Draw 1–5 community cards and reveal them publicly to both you and the user. Use this for games like poker or blackjack where certain cards are visible to everyone.',
+    deck_reshuffle: 'Return all cards (from your private hand, the user\'s pile, and the discard pile) back to the draw pile and shuffle. Use this when a game round ends or you need to start fresh.',
+    deck_view_user_cards: 'Request to see the cards currently held by the user. This will prompt the user for approval before revealing their card identities to you.',
+    deck_discard: 'Discard 1–10 cards from your private hand into the discard pile. These cards are removed from play until reshuffled.',
+    deck_count: 'Get the current counts of cards in each pile (draw, your hand, user\'s hand, discard). Useful for tracking game state.'
+});
 
 const DEFAULT_SETTINGS = Object.freeze({
     enabled: true,
     customDeck: '',
+    toolPrompts: {},
 });
 
 let settings;
@@ -29,11 +41,19 @@ function getSettings() {
     ctx.extensionSettings[EXTENSION_NAME] ??= {};
     for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
         if (!(key in ctx.extensionSettings[EXTENSION_NAME])) {
-            ctx.extensionSettings[EXTENSION_NAME][key] = value;
+            ctx.extensionSettings[EXTENSION_NAME][key] = JSON.parse(JSON.stringify(value));
         }
     }
     settings = ctx.extensionSettings[EXTENSION_NAME];
     return settings;
+}
+
+function getToolPrompt(toolName) {
+    const s = getSettings();
+    if (s.toolPrompts && typeof s.toolPrompts === 'object' && s.toolPrompts[toolName]) {
+        return s.toolPrompts[toolName];
+    }
+    return DEFAULT_TOOL_PROMPTS[toolName] || '';
 }
 
 function saveSettings() {
@@ -137,7 +157,7 @@ function makeToolDefinitions() {
         {
             name: 'deck_shuffle',
             displayName: 'Shuffle Card Deck',
-            description: 'Shuffle the remaining draw pile for the active card game. Call this before the first draw or pass after a deck reset. This does not reveal any card identities. Do not claim a shuffle occurred unless this tool succeeds.',
+            description: getToolPrompt('deck_shuffle') + '. Do not claim a shuffle occurred unless this tool succeeds.',
             parameters: {
                 $schema: 'http://json-schema.org/draft-04/schema#',
                 type: 'object',
@@ -160,7 +180,7 @@ function makeToolDefinitions() {
         {
             name: 'deck_draw',
             displayName: 'Draw Cards (Private)',
-            description: 'Draw 1–10 cards from the top of the shuffled draw pile into the LLM’s private hand. The returned card identities are visible to you (the LLM) but must not be shown or named to the user unless the game rules explicitly require it. The user interface hides the raw tool-call transcript. Never invent a draw; use this tool to obtain actual cards.',
+            description: getToolPrompt('deck_draw') + '. Never invent a draw; use this tool to obtain actual cards.',
             parameters: {
                 $schema: 'http://json-schema.org/draft-04/schema#',
                 type: 'object',
@@ -187,7 +207,7 @@ function makeToolDefinitions() {
         {
             name: 'deck_pass',
             displayName: 'Pass Cards to User',
-            description: 'Deal 1–10 cards from the top of the shuffled draw pile directly to the user. The extension reveals the actual card identities in its user-visible panel and notification, but deliberately withholds those identities from you. Your tool result will only confirm the number passed. Do not guess, infer, or invent the passed card identities. This is distinct from deck_draw, which gives you private card knowledge.',
+            description: getToolPrompt('deck_pass') + '. This is distinct from deck_draw, which gives you private card knowledge.',
             parameters: {
                 $schema: 'http://json-schema.org/draft-04/schema#',
                 type: 'object',
@@ -213,9 +233,49 @@ function makeToolDefinitions() {
             stealth: false,
         },
         {
+            name: 'deck_draw_common',
+            displayName: 'Draw Community Card (Public)',
+            description: getToolPrompt('deck_draw_common'),
+            parameters: {
+                $schema: 'http://json-schema.org/draft-04/schema#',
+                type: 'object',
+                properties: {
+                    count: { type: 'integer', minimum: 1, maximum: 5, description: 'Number of community cards to draw and reveal publicly (1–5).' },
+                },
+                required: ['count'],
+            },
+            action: async ({ count }) => {
+                if (!Number.isInteger(count) || count < 1 || count > 5) {
+                    return addError('Count must be an integer from 1 to 5.');
+                }
+                const { state, error } = requireDeck();
+                if (error) return addError(error);
+                if (state.drawPile.length < count) {
+                    return addError(`Not enough cards remain. Requested ${count}; only ${state.drawPile.length} remain.`);
+                }
+                const cards = state.drawPile.splice(0, count);
+                const cardText = cards.join(', ');
+                await pushLog('common', `Community cards revealed: ${cardText}`);
+                notify('info', `Community cards: ${cardText}`);
+                return `SUCCESS: Drew and publicly revealed ${count} community card(s): ${cardText}. Both you and the user can see these cards.`;
+            },
+            formatMessage: ({ count }) => {
+                const state = getChatState(false);
+                if (!state) return 'Community cards were drawn.';
+                for (let i = state.actionLog.length - 1; i >= 0; i--) {
+                    if (state.actionLog[i].kind === 'common') {
+                        const text = state.actionLog[i].text.replace('Community cards revealed: ', '');
+                        return `Community cards revealed: ${text}`;
+                    }
+                }
+                return 'Community cards were drawn.';
+            },
+            stealth: false,
+        },
+        {
             name: 'deck_reshuffle',
             displayName: 'Reshuffle All Cards',
-            description: 'Return all cards (from your private hand, the user\'s pile, and the discard pile) back to the draw pile and shuffle. Use this when a game round ends or you need to start fresh without resetting the entire chat.',
+            description: getToolPrompt('deck_reshuffle'),
             parameters: {
                 $schema: 'http://json-schema.org/draft-04/schema#',
                 type: 'object',
@@ -242,7 +302,7 @@ function makeToolDefinitions() {
         {
             name: 'deck_view_user_cards',
             displayName: 'View User\'s Cards (Requires Approval)',
-            description: 'Request to see the cards currently held by the user. This will prompt the user for approval before revealing their card identities to you. Use this sparingly and only when game rules require it.',
+            description: getToolPrompt('deck_view_user_cards'),
             parameters: {
                 $schema: 'http://json-schema.org/draft-04/schema#',
                 type: 'object',
@@ -291,7 +351,7 @@ function makeToolDefinitions() {
         {
             name: 'deck_discard',
             displayName: 'Discard Cards from Hand',
-            description: 'Discard 1–10 cards from your private hand into the discard pile. These cards are removed from play until reshuffled.',
+            description: getToolPrompt('deck_discard'),
             parameters: {
                 $schema: 'http://json-schema.org/draft-04/schema#',
                 type: 'object',
@@ -320,7 +380,7 @@ function makeToolDefinitions() {
         {
             name: 'deck_count',
             displayName: 'Check Card Counts',
-            description: 'Get the current counts of cards in each pile (draw, your hand, user\'s hand, discard). Useful for tracking game state.',
+            description: getToolPrompt('deck_count'),
             parameters: {
                 $schema: 'http://json-schema.org/draft-04/schema#',
                 type: 'object',
@@ -423,58 +483,130 @@ async function renderSettings() {
         console.error(`[${EXTENSION_NAME}] renderExtensionTemplateAsync is unavailable.`);
         return;
     }
+
     try {
         const html = await ctx.renderExtensionTemplateAsync(TEMPLATE_PATH, 'settings');
-    $('#extensions_settings2').append(html);
-    panelReady = true;
-    const current = getSettings();
-    $('#cdm_enabled').prop('checked', current.enabled !== false);
-    $('#cdm_custom_deck').val(current.customDeck ?? '');
+        $('#extensions_settings2').append(html);
 
-    $('#cdm_enabled').on('change', function () {
-        current.enabled = Boolean($(this).prop('checked'));
-        saveSettings();
-        if (current.enabled) registerTools();
-        else {
-            const context = getContext();
-            for (const name of TOOL_NAMES) context?.unregisterFunctionTool?.(name);
-            updateStatus('Extension disabled. Tool registration removed.');
+        panelReady = true;
+        const current = getSettings();
+        $('#cdm_enabled').prop('checked', current.enabled !== false);
+        $('#cdm_custom_deck').val(current.customDeck ?? '');
+
+        // Load custom tool prompts into UI
+        const promptFields = {
+            'deck_shuffle': '#cdm_prompt_shuffle',
+            'deck_draw': '#cdm_prompt_draw',
+            'deck_pass': '#cdm_prompt_pass',
+            'deck_draw_common': '#cdm_prompt_common',
+            'deck_reshuffle': '#cdm_prompt_reshuffle',
+            'deck_view_user_cards': '#cdm_prompt_view',
+            'deck_discard': '#cdm_prompt_discard',
+            'deck_count': '#cdm_prompt_count'
+        };
+        for (const [toolName, selector] of Object.entries(promptFields)) {
+            const customPrompt = getToolPrompt(toolName);
+            if (customPrompt !== DEFAULT_TOOL_PROMPTS[toolName]) {
+                $(selector).val(customPrompt);
+            }
         }
-    });
 
-    $('#cdm_save_deck').on('click', function () {
-        current.customDeck = String($('#cdm_custom_deck').val() ?? '');
-        saveSettings();
-        resetCurrentDeck();
-    });
+        $('#cdm_enabled').on('change', function () {
+            current.enabled = Boolean($(this).prop('checked'));
+            saveSettings();
+            if (current.enabled) registerTools();
+            else {
+                const context = getContext();
+                for (const name of TOOL_NAMES) context?.unregisterFunctionTool?.(name);
+                updateStatus('Extension disabled. Tool registration removed.');
+            }
+        });
 
-    $('#cdm_reset_deck').on('click', resetCurrentDeck);
+        $('#cdm_save_deck').on('click', function () {
+            current.customDeck = String($('#cdm_custom_deck').val() ?? '');
+            saveSettings();
+            resetCurrentDeck();
+        });
 
-    $('#cdm_reshuffle').on('click', async function () {
-        const state = getChatState();
-        if (!state) {
-            notify('error', 'Open a character or group chat before reshuffling.');
-            return;
-        }
-        // Collect all cards back into the draw pile
-        const handCards = state.llmHand.splice(0);
-        const passedCards = state.passedCards.splice(0);
-        const discardCards = state.discardPile.splice(0);
-        state.drawPile.push(...handCards, ...passedCards, ...discardCards);
-        shuffleArray(state.drawPile);
-        state.shuffled = true;
-        await pushLog('reshuffle', `User reshuffled all ${state.drawPile.length} card(s) back into the draw pile.`);
-        notify('success', `All cards collected and reshuffled. ${state.drawPile.length} card(s) in the draw pile.`);
-    });
+        $('#cdm_reset_deck').on('click', resetCurrentDeck);
 
-    $('#cdm_clear_log').on('click', function () {
-        const state = getChatState(false);
-        if (!state) return;
-        state.actionLog = [];
-        persistChatState().catch(error => console.error(`[${EXTENSION_NAME}] Could not clear action log`, error));
+        $('#cdm_reshuffle').on('click', async function () {
+            const state = getChatState();
+            if (!state) {
+                notify('error', 'Open a character or group chat before reshuffling.');
+                return;
+            }
+            // Collect all cards back into the draw pile
+            const handCards = state.llmHand.splice(0);
+            const passedCards = state.passedCards.splice(0);
+            const discardCards = state.discardPile.splice(0);
+            state.drawPile.push(...handCards, ...passedCards, ...discardCards);
+            shuffleArray(state.drawPile);
+            state.shuffled = true;
+            await pushLog('reshuffle', `User reshuffled all ${state.drawPile.length} card(s) back into the draw pile.`);
+            notify('success', `All cards collected and reshuffled. ${state.drawPile.length} card(s) in the draw pile.`);
+        });
+
+        $('#cdm_clear_log').on('click', function () {
+            const state = getChatState(false);
+            if (!state) return;
+            state.actionLog = [];
+            persistChatState().catch(error => console.error(`[${EXTENSION_NAME}] Could not clear action log`, error));
+            renderPanel();
+        });
+
+        // Save custom tool prompts
+        $('#cdm_save_prompts').on('click', function () {
+            const promptFields = {
+                'deck_shuffle': '#cdm_prompt_shuffle',
+                'deck_draw': '#cdm_prompt_draw',
+                'deck_pass': '#cdm_prompt_pass',
+                'deck_draw_common': '#cdm_prompt_common',
+                'deck_reshuffle': '#cdm_prompt_reshuffle',
+                'deck_view_user_cards': '#cdm_prompt_view',
+                'deck_discard': '#cdm_prompt_discard',
+                'deck_count': '#cdm_prompt_count'
+            };
+            const s = getSettings();
+            if (!s.toolPrompts || typeof s.toolPrompts !== 'object') {
+                s.toolPrompts = {};
+            }
+            for (const [toolName, selector] of Object.entries(promptFields)) {
+                const value = String($(selector).val() ?? '').trim();
+                if (value && value !== DEFAULT_TOOL_PROMPTS[toolName]) {
+                    s.toolPrompts[toolName] = value;
+                } else {
+                    delete s.toolPrompts[toolName];
+                }
+            }
+            saveSettings();
+            registerTools();
+            notify('success', 'Tool prompts saved and tools re-registered.');
+        });
+
+        // Reset tool prompts to defaults
+        $('#cdm_reset_prompts').on('click', function () {
+            const promptFields = {
+                'deck_shuffle': '#cdm_prompt_shuffle',
+                'deck_draw': '#cdm_prompt_draw',
+                'deck_pass': '#cdm_prompt_pass',
+                'deck_draw_common': '#cdm_prompt_common',
+                'deck_reshuffle': '#cdm_prompt_reshuffle',
+                'deck_view_user_cards': '#cdm_prompt_view',
+                'deck_discard': '#cdm_prompt_discard',
+                'deck_count': '#cdm_prompt_count'
+            };
+            for (const selector of Object.values(promptFields)) {
+                $(selector).val('');
+            }
+            const s = getSettings();
+            s.toolPrompts = {};
+            saveSettings();
+            registerTools();
+            notify('success', 'Tool prompts reset to defaults.');
+        });
+
         renderPanel();
-    });
-    renderPanel();
     } catch (error) {
         console.error(`[${EXTENSION_NAME}] Failed to render settings template:`, error);
         notify('error', 'Failed to load extension settings. Check the browser console for details.');
