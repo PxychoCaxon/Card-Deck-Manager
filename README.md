@@ -1,4 +1,4 @@
-# Card Deck Manager for SillyTavern v2.0
+# Card Deck Manager v2.0 for SillyTavern
 
 A client-side SillyTavern extension that exposes eight function tools to the active chat model for managing card games:
 
